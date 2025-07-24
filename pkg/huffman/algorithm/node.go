@@ -1,8 +1,6 @@
 package algorithm
 
 import (
-	"fmt"
-	"strings"
 	"sync"
 )
 
@@ -86,22 +84,6 @@ func combineNodes(left, right *node) *node {
 		frequency: left.frequency + right.frequency,
 		values:    values,
 	}
-}
-
-func printNode(node *node, step, sep, space, side string) {
-	if node == nil {
-		return
-	}
-	node.RLock()
-	defer node.RUnlock()
-	symbols := make([]string, 0, len(node.values))
-	for k := range node.values {
-		symbols = append(symbols, k)
-	}
-	out := fmt.Sprint(space, sep, step, strings.Join(symbols, "."), " ", node.frequency, side)
-	fmt.Println(out)
-	printNode(node.left, step+step[0:1], sep, space, " L")
-	printNode(node.right, step+step[0:1], sep, space, " R")
 }
 
 type nodesHeap []*node

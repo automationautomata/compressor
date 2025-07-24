@@ -62,12 +62,11 @@ func WriteHeader(h *Header, file io.WriteSeeker) (size int64, err error) {
 }
 
 func read(file io.Reader, headerDataType any) (size int64, err error) {
-	var headerSize int64
-	if err = binary.Read(file, binary.LittleEndian, &headerSize); err != nil {
+	if err = binary.Read(file, binary.LittleEndian, &size); err != nil {
 		return -1, err
 	}
 
-	headerBuf := make([]byte, headerSize)
+	headerBuf := make([]byte, size)
 	if err = binary.Read(file, binary.LittleEndian, headerBuf); err != nil {
 		return -1, err
 	}
@@ -78,7 +77,7 @@ func read(file io.Reader, headerDataType any) (size int64, err error) {
 		return -1, err
 	}
 
-	return headerSize, nil
+	return size + 8, nil
 }
 
 func ReadHeaderData(file io.ReadSeeker, headerDataType HeaderData) (size int64, err error) {

@@ -24,17 +24,19 @@ func NewDecompressor() *Decompressor {
 }
 
 func (d *Decompressor) HeaderDataType() comp.HeaderData {
-	return make(map[string][]byte)
+	m := make(map[string][]byte)
+	return &m
 }
 
 func (d *Decompressor) Preprocessing(_ io.ReadSeeker) error {
 	return nil
 }
 
-func (d *Decompressor) DecompressFile(dd *comp.DecompressionInput, progressChan chan int64) (err error) {
+func (d *Decompressor) DecompressFile(dd *comp.DecompressionInput, showProgress bool) (err error) {
 	srcFile, dstFile := dd.SourceFile, dd.DestFile
+	progressChan := dd.ProgressChan
 
-	codes := dd.Data.(map[string][]byte)
+	codes := *(dd.Data.(*map[string][]byte))
 	codesToSymbols := make(map[string][]byte)
 	minCodeLen, maxCodeLen := (1<<32)-1, 0
 	for symb, code := range codes {
@@ -70,7 +72,7 @@ func (d *Decompressor) DecompressFile(dd *comp.DecompressionInput, progressChan 
 		}
 		clear(buf)
 
-		if _, ok := <-progressChan; ok {
+		if showProgress {
 			progressChan <- int64(i)
 		}
 	}

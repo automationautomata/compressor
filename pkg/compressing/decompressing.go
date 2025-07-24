@@ -20,13 +20,14 @@ func (e *ErrHeaderRead) Unwrap() error {
 type Decompressor interface {
 	HeaderDataType() HeaderData
 	Preprocessing(srcPath io.ReadSeeker) error
-	DecompressFile(dd *DecompressionInput, progreessChan chan int64) error
+	DecompressFile(dd *DecompressionInput, showProgress bool) error
 }
 
 type DecompressionInput struct {
-	Data       HeaderData
-	SourceFile io.ReadSeeker
-	DestFile   io.WriteSeeker
+	Data         HeaderData
+	SourceFile   io.ReadSeeker
+	DestFile     io.WriteSeeker
+	ProgressChan chan int64
 }
 
 type DecompressionOutput struct {
@@ -41,6 +42,7 @@ func Decompress(
 	srcFile io.ReadSeeker,
 	dstFile io.WriteSeeker,
 	progressChan chan int64,
+	showProgress bool,
 ) (origName string, oldCheckSum string, err error) {
 
 	info, infoSize, err := readHeaderInfo(srcFile)
@@ -53,16 +55,16 @@ func Decompress(
 	if err != nil {
 		return "", "", &ErrHeaderRead{err}
 	}
-
 	if err := decomp.Preprocessing(srcFile); err != nil {
 		return "", "", err
 	}
 	srcFile.Seek(infoSize+dataSize, io.SeekStart)
-	if _, ok := <-progressChan; ok {
-		progressChan <- infoSize + dataSize
+	if showProgress {
+		progressChan <- (infoSize + dataSize)
 	}
 
-	err = decomp.DecompressFile(&DecompressionInput{data, srcFile, dstFile}, progressChan)
+	input := &DecompressionInput{data, srcFile, dstFile, progressChan}
+	err = decomp.DecompressFile(input, showProgress)
 	if err != nil {
 		return "", "", err
 	}

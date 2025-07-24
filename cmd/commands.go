@@ -4,6 +4,7 @@ import (
 	comp "archiver/pkg/compressing"
 	"archiver/pkg/huffman"
 	"archiver/pkg/utiles"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -50,7 +51,7 @@ func selectDecompressor(compType string) comp.Decompressor {
 }
 
 // decompressFile выполняет распаковку файла srcPath в dstPath.
-func decompressFile(srcPath, dstPath string, showProgress bool) {
+func decompressFile(srcPath, dstPath string, showProgress bool, ctx context.Context) {
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
 		printError(err)
@@ -59,22 +60,33 @@ func decompressFile(srcPath, dstPath string, showProgress bool) {
 	defer srcFile.Close()
 
 	dstFile, err := os.CreateTemp(".", "tmp-decompress-*.tmp")
+	tempName := dstFile.Name()
+	go func() {
+		select {
+		case <-ctx.Done():
+			if err := dstFile.Close(); err == nil {
+				os.Remove(tempName)
+			}
+		default:
+		}
+	}()
+
 	if err != nil {
-		printError(err)
 		return
 	}
 
 	var progressChan chan int64
-	if showProgress {
-		info, err := srcFile.Stat()
-		if err == nil {
-			progressChan = make(chan int64)
-			go utiles.ShowProgress64(info.Size(), progressChan)
-			defer close(progressChan)
-		}
+	if info, err := srcFile.Stat(); showProgress && err == nil {
+		progressChan = make(chan int64)
+		go utiles.ShowProgress64(info.Size(), progressChan)
+		defer close(progressChan)
+	} else {
+		showProgress = false
 	}
 
-	origName, oldChecksum, err := comp.Decompress(selectDecompressor, srcFile, dstFile, progressChan)
+	origName, oldChecksum, err := comp.Decompress(
+		selectDecompressor, srcFile, dstFile, progressChan, showProgress,
+	)
 	if err != nil {
 		printError(err)
 		return
@@ -85,6 +97,10 @@ func decompressFile(srcPath, dstPath string, showProgress bool) {
 	newChecksum, err := comp.CalcCheckSum(dstFile)
 	if err != nil {
 		printError(err)
+		name := dstFile.Name()
+		if err := dstFile.Close(); err == nil {
+			os.Remove(name)
+		}
 		return
 	}
 
@@ -93,7 +109,6 @@ func decompressFile(srcPath, dstPath string, showProgress bool) {
 		return
 	}
 
-	tempName := dstFile.Name()
 	if err := dstFile.Close(); err != nil {
 		printError(err)
 		return
@@ -110,12 +125,14 @@ func decompressFile(srcPath, dstPath string, showProgress bool) {
 }
 
 // compressFile выполняет сжатие файла filePath в dstPath с указанным типом и размером блока.
-func compressFile(filePath, dstPath, compType string, blockSize int, showProgress bool) {
+func compressFile(
+	filePath, dstPath, compType string, compArgs map[string]int, showProgress bool, ctx context.Context,
+) {
 	var compressor comp.Compressor
 
 	switch compType {
 	case "huff":
-		compressor = huffman.NewCompressor(blockSize, filePath)
+		compressor = huffman.NewCompressor(compArgs["blockSize"], filePath)
 	default:
 		color.Red("Unsupported compression type: %s\n", compType)
 		return
@@ -137,6 +154,16 @@ func compressFile(filePath, dstPath, compType string, blockSize int, showProgres
 	}
 	defer dstFile.Close()
 
+	go func() {
+		select {
+		case <-ctx.Done():
+			if err := dstFile.Close(); err == nil {
+				os.Remove(dstPath)
+			}
+		default:
+		}
+	}()
+
 	var progressChan chan int64
 	if showProgress {
 		info, err := srcFile.Stat()
@@ -154,13 +181,10 @@ func compressFile(filePath, dstPath, compType string, blockSize int, showProgres
 		return
 	}
 
-	if showProgress {
-		info, err := dstFile.Stat()
-		if err == nil {
-			fmt.Printf("\nOutput file: %s\n", color.GreenString(dstPath))
-			fmt.Printf("Header size: %d bytes\n", headerSize)
-			fmt.Printf("Output file size: %d bytes\n", info.Size())
-		}
+	if info, err := dstFile.Stat(); showProgress && err == nil {
+		fmt.Printf("\nOutput file: %s\n", color.GreenString(dstPath))
+		fmt.Printf("Header size: %d bytes\n", headerSize)
+		fmt.Printf("Output file size: %d bytes\n", info.Size())
 	}
 	color.Green("Compression succeeded!")
 }

@@ -1,25 +1,28 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: archiver <compress|decompress> [options] <file>")
+		fmt.Println("Usage: compressor <compress|decompress> [options] <file>")
 		return
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	// Определяем флаги для подкоманды compress
 	compressCmd := flag.NewFlagSet("compress", flag.ExitOnError)
 	compBlockSize := compressCmd.Int("block", 0, "block size for compression")
 	compType := compressCmd.String("type", "huff", "compression type (default huff)")
 	compDest := compressCmd.String("dest", "", "output file or directory path")
 	compQuiet := compressCmd.Bool("q", false, "quiet mode (no progress output)")
 
-	// Флаги для подкоманды decompress
 	decompressCmd := flag.NewFlagSet("decompress", flag.ExitOnError)
 	decompDest := decompressCmd.String("dest", "", "output file or directory path")
 	decompQuiet := decompressCmd.Bool("q", false, "quiet mode (no progress output)")
@@ -38,7 +41,8 @@ func main() {
 		}
 		inputPath := args[0]
 		showProgress := !*compQuiet
-		compressFile(inputPath, *compDest, *compType, *compBlockSize, showProgress)
+		compArgs := map[string]int{"blockSize": *compBlockSize}
+		compressFile(inputPath, *compDest, *compType, compArgs, showProgress, ctx)
 
 	case "decompress":
 		if err := decompressCmd.Parse(os.Args[2:]); err != nil {
@@ -53,7 +57,7 @@ func main() {
 		}
 		inputPath := args[0]
 		showProgress := !*decompQuiet
-		decompressFile(inputPath, *decompDest, showProgress)
+		decompressFile(inputPath, *decompDest, showProgress, ctx)
 
 	default:
 		fmt.Println("Expected 'compress' or 'decompress' subcommands")

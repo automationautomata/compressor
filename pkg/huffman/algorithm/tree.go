@@ -3,16 +3,9 @@ package algorithm
 import (
 	"archiver/pkg/utiles"
 	"container/heap"
-	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"sync"
-)
-
-var (
-	ErrCodeIndex        = errors.New("Index out of range")
-	ErrIncorectBitValue = errors.New("Bit value must be 0 or 1")
 )
 
 type Code struct {
@@ -36,7 +29,6 @@ func (c *Code) WriteBit(bit bool) {
 }
 
 func (c *Code) String() string {
-	// Преобразовать bits в строку "0101..."
 	var sb strings.Builder
 	for _, b := range c.bits {
 		sb.WriteByte('0' + b)
@@ -147,15 +139,12 @@ func (huff *HuffmanTree) EncodeTable() map[string]*Code {
 
 	for i := range huff.Alphabet {
 		block := huff.Alphabet[i]
-		fmt.Print(string(block), " ")
-		func(block []byte) {
+		go func(block []byte) {
 			defer wg.Done()
 			c := NewCode(0)
 			encodingSearch(huff.root, block, c, true, 0)
 			codes.Store(string(block), c)
 		}(block)
-
-		fmt.Println()
 	}
 	wg.Wait()
 	return codes.ToMap()

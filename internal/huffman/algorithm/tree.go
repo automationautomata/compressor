@@ -1,26 +1,26 @@
 package algorithm
 
 import (
-	"archiver/pkg/utiles"
+	"compressor/internal/utiles"
 	"container/heap"
 	"io"
 	"strings"
 	"sync"
 )
 
-type Code struct {
+type code struct {
 	bits []byte
 	sync.RWMutex
 }
 
 // NewCode создает новый код длинны length бит
-func NewCode(length uint64) *Code {
-	return &Code{
+func newCode(length uint64) *code {
+	return &code{
 		bits: make([]byte, length),
 	}
 }
 
-func (c *Code) WriteBit(bit bool) {
+func (c *code) writeBit(bit bool) {
 	if bit {
 		c.bits = append(c.bits, 1)
 	} else {
@@ -28,15 +28,7 @@ func (c *Code) WriteBit(bit bool) {
 	}
 }
 
-func (c *Code) String() string {
-	var sb strings.Builder
-	for _, b := range c.bits {
-		sb.WriteByte('0' + b)
-	}
-	return sb.String()
-}
-
-func (c *Code) Bytes() []byte {
+func (c *code) bytes() []byte {
 	bitCount := len(c.bits)
 	if bitCount == 0 {
 		return nil
@@ -56,6 +48,14 @@ func (c *Code) Bytes() []byte {
 	return result
 }
 
+func (c *code) String() string {
+	var sb strings.Builder
+	for _, b := range c.bits {
+		sb.WriteByte('0' + b)
+	}
+	return sb.String()
+}
+
 type HuffmanTree struct {
 	root      *node
 	size      int
@@ -73,7 +73,7 @@ func NewHuffmanTree(blockSize int) *HuffmanTree {
 }
 
 // CountFrequencies читает файл блоками и возвращает частоты блоков
-func CountFrequencies(file io.ReadSeeker, blockSize int) (map[string]uint64, error) {
+func CountFrequencies(file io.Reader, blockSize int) (map[string]uint64, error) {
 	buf := make([]byte, blockSize)
 	frequencies := make(map[string]uint64)
 
@@ -110,30 +110,14 @@ func (huff *HuffmanTree) BuildTree(frequencies map[string]uint64) error {
 	for len(nodes) != 1 {
 		node1 := heap.Pop(&nodes).(*node)
 		node2 := heap.Pop(&nodes).(*node)
-		heap.Push(&nodes, combineNodes(node1, node2))
+		heap.Push(&nodes, combine(node1, node2))
 	}
 	huff.root = heap.Pop(&nodes).(*node)
 	return nil
 }
 
-func encodingSearch(n *node, value []byte, code *Code, bitFlag bool, height uint64) {
-	if n == nil || !n.hasValue(value) {
-		return
-	}
-
-	if height > 0 {
-		if bitFlag {
-			code.WriteBit(true)
-		} else {
-			code.WriteBit(false)
-		}
-	}
-	encodingSearch(n.right, value, code, true, height+1)
-	encodingSearch(n.left, value, code, false, height+1)
-}
-
-func (huff *HuffmanTree) EncodeTable() map[string]*Code {
-	codes := utiles.NewSafeMap[string, *Code]()
+func (huff *HuffmanTree) EncodeTable() map[string][]byte {
+	codes := utiles.NewSafeMap[string, *code]()
 	var wg sync.WaitGroup
 	wg.Add(len(huff.Alphabet))
 
@@ -141,11 +125,34 @@ func (huff *HuffmanTree) EncodeTable() map[string]*Code {
 		block := huff.Alphabet[i]
 		go func(block []byte) {
 			defer wg.Done()
-			c := NewCode(0)
+			c := newCode(0)
 			encodingSearch(huff.root, block, c, true, 0)
 			codes.Store(string(block), c)
 		}(block)
 	}
 	wg.Wait()
-	return codes.ToMap()
+
+	bytesFromCodes := make(map[string][]byte)
+	codes.Range(func(s string, c *code) (pass bool) {
+		bytesFromCodes[s] = c.bytes()
+		return true
+	})
+
+	return bytesFromCodes
+}
+
+func encodingSearch(n *node, value []byte, c *code, bitFlag bool, height uint64) {
+	if n == nil || !n.hasValue(value) {
+		return
+	}
+
+	if height > 0 {
+		if bitFlag {
+			c.writeBit(true)
+		} else {
+			c.writeBit(false)
+		}
+	}
+	encodingSearch(n.right, value, c, true, height+1)
+	encodingSearch(n.left, value, c, false, height+1)
 }

@@ -2,9 +2,9 @@ package utiles
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strings"
-
-	"github.com/cheggaaa/pb/v3"
 )
 
 const (
@@ -25,7 +25,25 @@ func formatRow(row []string, rowWidths []int, sep string) string {
 	return strings.Join(fmtRows, sep)
 }
 
-func ShowTable(titles []string, rows [][]string, colSep, rowSep string) {
+type TableParams struct {
+	ColSep      string
+	RowSep      string
+	VerticalSep bool
+	IndentSize  int
+	Writer      io.Writer
+}
+
+func ShowTable(titles []string, rows [][]string, params TableParams) {
+	w := params.Writer
+	if w == nil {
+		w = os.Stdout
+	}
+	indent := ""
+	if params.IndentSize != 0 {
+		indent = strings.Repeat(" ", params.IndentSize)
+	}
+
+	colSep, rowSep := params.ColSep, params.RowSep
 	if colSep == "" {
 		colSep = defaultColumnSeparator
 	}
@@ -42,20 +60,22 @@ func ShowTable(titles []string, rows [][]string, colSep, rowSep string) {
 			extending := make([]int, len(rows[i])-len(rowWidths))
 			rowWidths = append(rowWidths, extending...)
 		}
-		for j, item := range rows[i] {
-			rowWidths[j] = max(rowWidths[j], len(item))
+		for j, fileItem := range rows[i] {
+			rowWidths[j] = max(rowWidths[j], len(fileItem))
 		}
 	}
 
 	titlesRow := formatRow(titles, rowWidths, colSep)
-	fmt.Println(titlesRow)
-
-	fmt.Println(strings.Repeat(rowSep, len(titlesRow)))
-
+	fmt.Fprintf(w, "%s%s\n", indent, titlesRow)
+	if params.VerticalSep {
+		fmt.Fprintf(w, "%s%s\n", indent, strings.Repeat(rowSep, len(titlesRow)))
+	}
 	for i := range rows {
 		fmtRow := formatRow(rows[i], rowWidths, colSep)
-		fmt.Println(fmtRow)
-		fmt.Println(strings.Repeat("-", len(fmtRow)))
+		fmt.Fprintf(w, "%s%s\n", indent, fmtRow)
+		if params.VerticalSep {
+			fmt.Fprintf(w, "%s%s\n", indent, strings.Repeat("-", len(fmtRow)))
+		}
 	}
 }
 
@@ -76,26 +96,4 @@ func BinBytes(b []byte) string {
 		bits[i] = fmt.Sprintf("%08b", v)
 	}
 	return strings.Join(bits, " ")
-}
-
-func ShowProgress64(total int64, progressChan chan int64) {
-	bar := pb.Start64(total)
-	for incr := range progressChan {
-		bar.Add64(incr)
-		if bar.Current() >= total {
-			break
-		}
-	}
-	bar.Finish()
-}
-
-func ShowProgress(total int, progressChan chan int) {
-	int64Chan := make(chan int64)
-	go func() {
-		defer close(int64Chan)
-		for v := range progressChan {
-			int64Chan <- int64(v)
-		}
-	}()
-	ShowProgress64(int64(total), int64Chan)
 }

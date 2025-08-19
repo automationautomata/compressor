@@ -29,8 +29,8 @@ var (
 	decompDest  string
 	decompQuiet bool
 )
-var decompressCmd = &cobra.Command{
-	Use:   "decompress [flags] <file>",
+var uncompressCmd = &cobra.Command{
+	Use:   "uncompress [flags] <file>",
 	Short: "Decompress file",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,7 +74,7 @@ var decompressCmd = &cobra.Command{
 
 		output, err := comp.Decompress(selectDecompressor, srcFile, dstDir, prog)
 		if err != nil {
-			cmd.Println(color.RedString("File can't be decompressed! Decompression failed."))
+			cmd.Println(color.RedString("File can't be uncompressed! Decompression failed."))
 			return err
 		}
 		if showProgress {
@@ -96,6 +96,6 @@ var decompressCmd = &cobra.Command{
 }
 
 func init() {
-	decompressCmd.Flags().StringVar(&decompDest, "dest", "", "output file or directory path")
-	decompressCmd.Flags().BoolVarP(&decompQuiet, "quiet", "q", false, "quiet mode (no progress output)")
+	uncompressCmd.Flags().StringVar(&decompDest, "dest", "", "output file or directory path")
+	uncompressCmd.Flags().BoolVarP(&decompQuiet, "quiet", "q", false, "quiet mode (no progress output)")
 }

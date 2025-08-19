@@ -10,9 +10,9 @@ import (
 func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "compressor",
-		Short: "Compressor is a CLI tool for files or directory compressing and decompressing ",
+		Short: "Compressor is a CLI tool for files or directory compressing and uncompressing ",
 	}
-	rootCmd.AddCommand(compressCmd, decompressCmd, metadataCmd)
+	rootCmd.AddCommand(compressCmd, uncompressCmd, metadataCmd)
 	return rootCmd
 }
 
